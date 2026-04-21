@@ -48,6 +48,7 @@ export default function EmergencyChat() {
   );
 
   const sendMessage = trpc.ai.chat.useMutation();
+  const transcribeAudio = trpc.system.transcribeAudio.useMutation();
   const addChatMessage = trpc.chat.addMessage.useMutation();
 
   useEffect(() => {
@@ -109,20 +110,30 @@ export default function EmergencyChat() {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         try {
           setInput("🎤 Transcribing...");
-          const formData = new FormData();
-          formData.append("audio", audioBlob, "recording.webm");
-          const res = await fetch("/api/trpc/system.transcribeAudio", {
-            method: "POST",
-            body: formData,
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setInput(data.result?.text || "Unable to transcribe");
-          } else {
-            setInput("Failed to transcribe. Please try again.");
-          }
-        } catch {
-          setInput("Error transcribing audio. Please try again.");
+          
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            try {
+              const base64 = (reader.result as string).split(",")[1];
+              const result = await transcribeAudio.mutateAsync({
+                audio: base64,
+                mimeType: audioBlob.type,
+              });
+              
+              if ("text" in result) {
+                setInput(result.text || "Unable to transcribe");
+              } else {
+                setInput("Failed to transcribe. Please try again.");
+              }
+            } catch (error) {
+              console.error("Transcription error:", error);
+              setInput("Error transcribing audio. Please try again.");
+            }
+          };
+        } catch (error) {
+          console.error("Audio processing error:", error);
+          setInput("Error processing audio. Please try again.");
         }
       };
 

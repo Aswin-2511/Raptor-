@@ -28,7 +28,9 @@
 import { ENV } from "./env";
 
 export type TranscribeOptions = {
-  audioUrl: string; // URL to the audio file (e.g., S3 URL)
+  audioUrl?: string; // URL to the audio file (e.g., S3 URL)
+  audioBuffer?: Buffer; // Raw audio data
+  mimeType?: string; // MIME type of the audio data
   language?: string; // Optional: specify language code (e.g., "en", "es", "zh")
   prompt?: string; // Optional: custom prompt for the transcription
 };
@@ -90,36 +92,48 @@ export async function transcribeAudio(
       };
     }
 
-    // Step 2: Download audio from URL
+    // Step 2: Get audio data
     let audioBuffer: Buffer;
     let mimeType: string;
-    try {
-      const response = await fetch(options.audioUrl);
-      if (!response.ok) {
+
+    if (options.audioBuffer) {
+      audioBuffer = options.audioBuffer;
+      mimeType = options.mimeType || 'audio/mpeg';
+    } else if (options.audioUrl) {
+      try {
+        const response = await fetch(options.audioUrl);
+        if (!response.ok) {
+          return {
+            error: "Failed to download audio file",
+            code: "INVALID_FORMAT",
+            details: `HTTP ${response.status}: ${response.statusText}`
+          };
+        }
+        
+        audioBuffer = Buffer.from(await response.arrayBuffer());
+        mimeType = response.headers.get('content-type') || 'audio/mpeg';
+      } catch (error) {
         return {
-          error: "Failed to download audio file",
-          code: "INVALID_FORMAT",
-          details: `HTTP ${response.status}: ${response.statusText}`
+          error: "Failed to fetch audio file",
+          code: "SERVICE_ERROR",
+          details: error instanceof Error ? error.message : "Unknown error"
         };
       }
-      
-      audioBuffer = Buffer.from(await response.arrayBuffer());
-      mimeType = response.headers.get('content-type') || 'audio/mpeg';
-      
-      // Check file size (16MB limit)
-      const sizeMB = audioBuffer.length / (1024 * 1024);
-      if (sizeMB > 16) {
-        return {
-          error: "Audio file exceeds maximum size limit",
-          code: "FILE_TOO_LARGE",
-          details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 16MB`
-        };
-      }
-    } catch (error) {
+    } else {
       return {
-        error: "Failed to fetch audio file",
-        code: "SERVICE_ERROR",
-        details: error instanceof Error ? error.message : "Unknown error"
+        error: "No audio data provided",
+        code: "INVALID_FORMAT",
+        details: "Either audioUrl or audioBuffer must be provided"
+      };
+    }
+
+    // Check file size (16MB limit)
+    const sizeMB = audioBuffer.length / (1024 * 1024);
+    if (sizeMB > 16) {
+      return {
+        error: "Audio file exceeds maximum size limit",
+        code: "FILE_TOO_LARGE",
+        details: `File size is ${sizeMB.toFixed(2)}MB, maximum allowed is 16MB`
       };
     }
 

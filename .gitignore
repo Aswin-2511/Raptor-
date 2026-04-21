@@ -111,3 +111,8 @@ temp/
 
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
+
+# Deployment artifacts
+raptor_ai_bundle.zip
+deployment/
+DEPLOYMENT_GUIDE.md

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { notifyOwner } from "./notification";
+import { transcribeAudio } from "./voiceTranscription";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 
 export const systemRouter = router({
@@ -25,5 +26,22 @@ export const systemRouter = router({
       return {
         success: delivered,
       } as const;
+    }),
+
+  transcribeAudio: publicProcedure
+    .input(
+      z.object({
+        audio: z.string(), // Base64
+        mimeType: z.string().optional(),
+        language: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const buffer = Buffer.from(input.audio, "base64");
+      return await transcribeAudio({
+        audioBuffer: buffer,
+        mimeType: input.mimeType,
+        language: input.language,
+      });
     }),
 });
